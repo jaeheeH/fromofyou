@@ -13,7 +13,9 @@ import {
   FileText,
   BarChart3,
   Settings,
-  Plus
+  Plus,
+  MapPin,
+  Building
 } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -25,6 +27,8 @@ export default function AdminDashboard() {
     totalCurations: 0,
     totalArtworks: 0,
     totalExhibitions: 0,
+    totalPlaces: 0,          // 🆕 장소 통계 추가
+    totalPlaceCategories: 0, // 🆕 장소 카테고리 통계 추가
     loadingStats: true
   })
 
@@ -44,11 +48,15 @@ export default function AdminDashboard() {
       const [
         usersResult,
         exhibitionsResult,
+        placesResult,        // 🆕 장소 통계 추가
+        categoriesResult,    // 🆕 카테고리 통계 추가
         // curationsResult,  // 아직 테이블 없음
         // artworksResult,   // 아직 테이블 없음
       ] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('exhibitions').select('id', { count: 'exact' }),
+        supabase.from('places').select('id', { count: 'exact' }),
+        supabase.from('place_categories').select('id', { count: 'exact' }),
         // supabase.from('curations').select('id', { count: 'exact' }),
         // supabase.from('artworks').select('id', { count: 'exact' }),
       ])
@@ -58,6 +66,8 @@ export default function AdminDashboard() {
         totalCurations: 0, // 임시로 0
         totalArtworks: 0,  // 임시로 0
         totalExhibitions: exhibitionsResult.count || 0,
+        totalPlaces: placesResult.count || 0,
+        totalPlaceCategories: categoriesResult.count || 0,
         loadingStats: false
       })
 
@@ -116,40 +126,6 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">큐레이션</CardTitle>
-              <Palette className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stats.loadingStats ? (
-                  <div className="animate-pulse bg-gray-200 h-8 w-12 rounded"></div>
-                ) : (
-                  stats.totalCurations.toLocaleString()
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">발행된 큐레이션</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">작품</CardTitle>
-              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stats.loadingStats ? (
-                  <div className="animate-pulse bg-gray-200 h-8 w-12 rounded"></div>
-                ) : (
-                  stats.totalArtworks.toLocaleString()
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">등록된 작품</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">전시</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -162,6 +138,41 @@ export default function AdminDashboard() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">등록된 전시</p>
+            </CardContent>
+          </Card>
+
+          {/* 🆕 장소 통계 카드 */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">장소</CardTitle>
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats.loadingStats ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-12 rounded"></div>
+                ) : (
+                  stats.totalPlaces.toLocaleString()
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">등록된 장소</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">큐레이션</CardTitle>
+              <Palette className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats.loadingStats ? (
+                  <div className="animate-pulse bg-gray-200 h-8 w-12 rounded"></div>
+                ) : (
+                  stats.totalCurations.toLocaleString()
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">발행된 큐레이션 (예정)</p>
             </CardContent>
           </Card>
         </div>
@@ -188,52 +199,6 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <Palette className="h-5 w-5 mr-2" />
-                큐레이션 관리
-              </CardTitle>
-              <CardDescription>
-                큐레이션 생성 및 편집
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Button className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  새 큐레이션
-                </Button>
-                <Button variant="outline" className="w-full">
-                  큐레이션 목록
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <ImageIcon className="h-5 w-5 mr-2" />
-                갤러리 관리
-              </CardTitle>
-              <CardDescription>
-                작가 및 작품 등록 관리
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Button className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  작가 등록
-                </Button>
-                <Button variant="outline" className="w-full">
-                  작품 관리
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
                 전시 관리
               </CardTitle>
@@ -247,9 +212,82 @@ export default function AdminDashboard() {
                   <Plus className="h-4 w-4 mr-2" />
                   새 전시
                 </Button>
-
                 <Button variant="outline" className="w-full" onClick={() => router.push('/admin/exhibitions')}>
                   전시 목록
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 🆕 장소 관리 카드 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <MapPin className="h-5 w-5 mr-2" />
+                장소 관리
+              </CardTitle>
+              <CardDescription>
+                전시 장소 및 카테고리 관리
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Button className="w-full" onClick={() => router.push('/admin/places/create')}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  새 장소
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => router.push('/admin/places')}>
+                  장소 목록
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => router.push('/admin/categories/places')}>
+                  <Building className="h-4 w-4 mr-2" />
+                  카테고리 관리
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Palette className="h-5 w-5 mr-2" />
+                큐레이션 관리
+              </CardTitle>
+              <CardDescription>
+                큐레이션 생성 및 편집 (예정)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Button className="w-full" disabled>
+                  <Plus className="h-4 w-4 mr-2" />
+                  새 큐레이션
+                </Button>
+                <Button variant="outline" className="w-full" disabled>
+                  큐레이션 목록
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <ImageIcon className="h-5 w-5 mr-2" />
+                갤러리 관리
+              </CardTitle>
+              <CardDescription>
+                작가 및 작품 등록 관리 (예정)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Button className="w-full" disabled>
+                  <Plus className="h-4 w-4 mr-2" />
+                  작가 등록
+                </Button>
+                <Button variant="outline" className="w-full" disabled>
+                  작품 관리
                 </Button>
               </div>
             </CardContent>
@@ -266,28 +304,65 @@ export default function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full">
+              <Button className="w-full" disabled>
                 통계 보기
               </Button>
             </CardContent>
           </Card>
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Settings className="h-5 w-5 mr-2" />
-                시스템 설정
-              </CardTitle>
-              <CardDescription>
-                사이트 설정 및 관리
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                설정 관리
-              </Button>
-            </CardContent>
-          </Card>
+        {/* 🆕 빠른 접근 통계 */}
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">빠른 접근</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/places')}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">등록된 장소</p>
+                    <p className="text-2xl font-bold">{stats.totalPlaces}</p>
+                  </div>
+                  <MapPin className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/categories/places')}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">장소 카테고리</p>
+                    <p className="text-2xl font-bold">{stats.totalPlaceCategories}</p>
+                  </div>
+                  <Building className="h-8 w-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/exhibitions')}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">진행 중인 전시</p>
+                    <p className="text-2xl font-bold">{stats.totalExhibitions}</p>
+                  </div>
+                  <FileText className="h-8 w-8 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/users')}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">활성 사용자</p>
+                    <p className="text-2xl font-bold">{stats.totalUsers}</p>
+                  </div>
+                  <Users className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

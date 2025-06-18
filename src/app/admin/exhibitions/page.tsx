@@ -27,17 +27,7 @@ import {
   Trash2
 } from 'lucide-react'
 
-interface Exhibition {
-  id: string
-  title: string
-  location: string
-  description: string | null
-  start_date: string
-  end_date: string
-  thumbnail_url: string | null
-  status: string
-  created_at: string
-}
+import { Exhibition } from '@/types/database'
 
 export default function ExhibitionsManagement() {
   const { isAdmin, loading } = useAdmin()

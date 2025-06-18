@@ -19,15 +19,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react'
 
-interface ExhibitionForm {
-  title: string
-  location: string
-  description: string
-  start_date: string
-  end_date: string
-  thumbnail: File | null
-  existing_thumbnail_url: string | null // 기존 썸네일 URL
-}
+import { ExhibitionForm } from '@/types/database'
 
 export default function EditExhibition() {
   const params = useParams()
