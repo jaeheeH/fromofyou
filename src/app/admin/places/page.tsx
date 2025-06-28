@@ -246,7 +246,7 @@ export default function PlacesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>장소 정보</TableHead>
+                    <TableHead>장소</TableHead>
                     <TableHead>카테고리</TableHead>
                     <TableHead>주소</TableHead>
                     <TableHead>연락처</TableHead>
@@ -287,7 +287,7 @@ export default function PlacesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm max-w-xs truncate">
-                          {place.address}
+                        {`${place.address}${place.address_detail ? ` ${place.address_detail}` : ''}`}
                         </div>
                       </TableCell>
                       <TableCell>

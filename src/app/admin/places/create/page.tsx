@@ -20,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { PlaceFormData, PlaceCategory, DaumPostcodeData, defaultOperatingHours, defaultPlaceLinks } from '@/types/database'
 import { ArrowLeft, Save, MapPin, Plus, Upload } from 'lucide-react'
+import { ImageUpload } from '@/components/common/ImageUpload'
 
 export default function CreatePlacePage() {
   const [scriptLoaded, setScriptLoaded] = useState(false)
@@ -38,6 +39,7 @@ export default function CreatePlacePage() {
     phone: '',
     operating_hours: defaultOperatingHours,
     address: '',
+    address_detail: '',
     jibun_address: '',
     coordinates: { lat: 0, lng: 0 },
     thumbnail_file: undefined,
@@ -45,6 +47,10 @@ export default function CreatePlacePage() {
     links: defaultPlaceLinks
   })
   
+  // 이미지 파일 상태 (기존 formData 아래에)
+  const [thumbnailFiles, setThumbnailFiles] = useState<File[]>([])
+  const [additionalFiles, setAdditionalFiles] = useState<File[]>([])
+
   const [errors, setErrors] = useState<Partial<Record<keyof PlaceFormData, string>>>({})
   
   const router = useRouter()
@@ -162,9 +168,24 @@ export default function CreatePlacePage() {
 
     try {
       setLoading(true)
-
-      // TODO: 이미지 업로드 로직 추가
-      
+    
+      // 이미지 업로드 처리
+      let thumbnailUrl: string | null = null
+      let additionalImageUrls: string[] = []
+    
+      // 썸네일 업로드
+      if (formData.thumbnail_file) {
+        thumbnailUrl = await uploadImage(formData.thumbnail_file, 'thumbnails')
+      }
+    
+      // 추가 이미지들 업로드
+      if (formData.additional_files.length > 0) {
+        const uploadPromises = formData.additional_files.map(file => 
+          uploadImage(file, 'additional')
+        )
+        additionalImageUrls = await Promise.all(uploadPromises)
+      }
+    
       // 장소 데이터 저장
       const { error } = await supabase
         .from('places')
@@ -175,15 +196,15 @@ export default function CreatePlacePage() {
           phone: formData.phone.trim() || null,
           operating_hours: formData.operating_hours,
           address: formData.address.trim(),
+          address_detail: formData.address_detail.trim() || null,
           jibun_address: formData.jibun_address?.trim() || null,
-          // coordinates: `POINT(${formData.coordinates.lng} ${formData.coordinates.lat})`,
           links: formData.links,
-          thumbnail_image: null, // TODO: 업로드된 이미지 URL
-          additional_images: []  // TODO: 업로드된 이미지 URLs
+          thumbnail_image: thumbnailUrl,
+          additional_images: additionalImageUrls
         }])
-
+    
       if (error) throw error
-
+    
       alert('장소가 성공적으로 등록되었습니다.')
       router.push('/admin/places')
     } catch (err) {
@@ -216,6 +237,44 @@ export default function CreatePlacePage() {
         [type]: value
       }
     }))
+  }
+
+  // 썸네일 이미지 변경
+  const handleThumbnailChange = (files: File[]) => {
+    setThumbnailFiles(files)
+    setFormData(prev => ({
+      ...prev,
+      thumbnail_file: files[0] || undefined
+    }))
+  }
+
+  // 추가 이미지 변경  
+  const handleAdditionalImagesChange = (files: File[]) => {
+    setAdditionalFiles(files)
+    setFormData(prev => ({
+      ...prev,
+      additional_files: files
+    }))
+  }
+
+  // Supabase Storage 이미지 업로드 함수
+  const uploadImage = async (file: File, path: string): Promise<string> => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+    const filePath = `${path}/${fileName}`
+
+    const { data, error } = await supabase.storage
+      .from('place') // Supabase 버킷 이름
+      .upload(filePath, file)
+
+    if (error) throw error
+
+    // 공개 URL 가져오기
+    const { data: { publicUrl } } = supabase.storage
+      .from('place')
+      .getPublicUrl(filePath)
+
+    return publicUrl
   }
 
   useEffect(() => {
@@ -399,6 +458,22 @@ export default function CreatePlacePage() {
                   <Input value={formData.jibun_address} readOnly className="bg-gray-50" />
                 </div>
               )}
+              {/* 상세주소 입력 */}
+              <div className="space-y-2">
+                <Label htmlFor="address_detail">상세주소</Label>
+                <Input
+                  id="address_detail"
+                  value={formData.address_detail}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    address_detail: e.target.value 
+                  }))}
+                  placeholder="동/호수, 층수, 상세 위치 등을 입력하세요"
+                />
+                <p className="text-sm text-gray-500">
+                  예: 3층, B1F 전시관, 101호 등
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -408,13 +483,28 @@ export default function CreatePlacePage() {
               <CardTitle>이미지</CardTitle>
               <CardDescription>장소의 사진을 업로드해주세요</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* TODO: 이미지 업로드 컴포넌트 구현 */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-2">이미지 업로드 기능은 곧 추가될 예정입니다</p>
-                <p className="text-sm text-gray-400">썸네일 이미지와 추가 이미지를 업로드할 수 있습니다</p>
-              </div>
+            <CardContent className="space-y-8">
+              {/* 썸네일 이미지 */}
+              <ImageUpload
+                label="썸네일 이미지"
+                description="장소를 대표하는 메인 이미지 (1개)"
+                multiple={false}
+                maxFiles={1}
+                maxSize={10}
+                onFilesChange={handleThumbnailChange}
+                currentFiles={thumbnailFiles}
+              />
+
+              {/* 추가 이미지들 */}
+              <ImageUpload
+                label="추가 이미지"
+                description="장소의 다양한 모습을 보여주는 사진들 (최대 5개)"
+                multiple={true}
+                maxFiles={5}
+                maxSize={10}
+                onFilesChange={handleAdditionalImagesChange}
+                currentFiles={additionalFiles}
+              />
             </CardContent>
           </Card>
 

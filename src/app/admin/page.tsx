@@ -311,59 +311,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* 🆕 빠른 접근 통계 */}
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4">빠른 접근</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/places')}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">등록된 장소</p>
-                    <p className="text-2xl font-bold">{stats.totalPlaces}</p>
-                  </div>
-                  <MapPin className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/categories/places')}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">장소 카테고리</p>
-                    <p className="text-2xl font-bold">{stats.totalPlaceCategories}</p>
-                  </div>
-                  <Building className="h-8 w-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/exhibitions')}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">진행 중인 전시</p>
-                    <p className="text-2xl font-bold">{stats.totalExhibitions}</p>
-                  </div>
-                  <FileText className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/admin/users')}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">활성 사용자</p>
-                    <p className="text-2xl font-bold">{stats.totalUsers}</p>
-                  </div>
-                  <Users className="h-8 w-8 text-orange-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
     </div>
   )

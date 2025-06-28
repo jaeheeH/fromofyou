@@ -17,8 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
+import { ImageUpload } from '@/components/common/ImageUpload'
 import { Place, PlaceCategory, DaumPostcodeData, defaultPlaceLinks } from '@/types/database'
-import { ArrowLeft, Save, MapPin, Plus, Upload } from 'lucide-react'
+import { ArrowLeft, Save, MapPin, Plus, Upload, RotateCcw, Trash2 } from 'lucide-react'
 
 export default function EditPlacePage() {
   const params = useParams()
@@ -31,6 +32,14 @@ export default function EditPlacePage() {
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [place, setPlace] = useState<Place | null>(null)
   
+  const [thumbnailFiles, setThumbnailFiles] = useState<File[]>([])
+  const [additionalFiles, setAdditionalFiles] = useState<File[]>([])
+  const [deletedImages, setDeletedImages] = useState<string[]>([])
+  
+  // 이미지 교체 관련 상태
+  const [replacingImageUrl, setReplacingImageUrl] = useState<string | null>(null)
+  const [replaceImageFile, setReplaceImageFile] = useState<File | null>(null)
+
   // 새 카테고리 추가용
   const [newCategory, setNewCategory] = useState({ name: '', description: '' })
   
@@ -41,6 +50,7 @@ export default function EditPlacePage() {
     description: '',
     phone: '',
     address: '',
+    address_detail: '',
     jibun_address: '',
     links: defaultPlaceLinks
   })
@@ -75,6 +85,7 @@ export default function EditPlacePage() {
         description: data.description || '',
         phone: data.phone || '',
         address: data.address || '',
+        address_detail : data.address_detail || '',
         jibun_address: data.jibun_address || '',
         links: data.links || defaultPlaceLinks
       })
@@ -163,6 +174,109 @@ export default function EditPlacePage() {
     }
   }
 
+  // Supabase Storage 이미지 업로드 함수
+  const uploadImage = async (file: File, path: string): Promise<string> => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+    const filePath = `${path}/${fileName}`
+
+    const { data, error } = await supabase.storage
+      .from('place')
+      .upload(filePath, file)
+
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('place')
+      .getPublicUrl(filePath)
+
+    return publicUrl
+  }
+
+  // 기존 이미지 Storage에서 삭제
+  const deleteImageFromStorage = async (url: string) => {
+    try {
+      const urlParts = url.split('/storage/v1/object/public/place/')
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1]
+        
+        const { error } = await supabase.storage
+          .from('place')
+          .remove([filePath])
+
+        if (error) {
+          console.error('이미지 삭제 오류:', error)
+        }
+      }
+    } catch (err) {
+      console.error('이미지 삭제 중 오류:', err)
+    }
+  }
+
+  // 추가 이미지 교체 시작
+  const startAdditionalImageReplace = (index: number) => {
+    if (place?.additional_images && place.additional_images[index]) {
+      const imageUrl = place.additional_images[index]
+      console.log('이미지 교체 시작:', imageUrl)
+      setReplacingImageUrl(imageUrl)
+      setReplaceImageFile(null)
+    }
+  }
+
+  // 추가 이미지 교체 취소
+  const cancelAdditionalImageReplace = () => {
+    console.log('이미지 교체 취소')
+    setReplacingImageUrl(null)
+    setReplaceImageFile(null)
+  }
+
+  // 교체할 이미지 파일 선택
+  const handleReplaceImageSelect = (files: File[]) => {
+    if (files.length > 0 && replacingImageUrl) {
+      console.log('교체 이미지 선택됨:', files[0].name)
+      setReplaceImageFile(files[0])
+    }
+  }
+
+  // 교체 확인
+  const confirmImageReplace = async () => {
+    if (!replaceImageFile || !replacingImageUrl) return
+
+    try {
+      console.log('이미지 교체 처리 중...')
+      
+      // 새 이미지 업로드
+      const newImageUrl = await uploadImage(replaceImageFile, 'additional')
+      console.log('새 이미지 업로드 완료:', newImageUrl)
+      
+      // 기존 이미지를 삭제 목록에 추가
+      setDeletedImages(prev => [...prev, replacingImageUrl])
+      
+      // place 상태에서 기존 이미지를 새 이미지로 교체
+      setPlace(prev => {
+        if (!prev) return prev
+        
+        const updatedImages = prev.additional_images?.map(url => 
+          url === replacingImageUrl ? newImageUrl : url
+        ) || []
+        
+        return {
+          ...prev,
+          additional_images: updatedImages
+        }
+      })
+      
+      // 교체 상태 초기화
+      setReplacingImageUrl(null)
+      setReplaceImageFile(null)
+      
+      alert('이미지가 성공적으로 교체되었습니다.')
+    } catch (error) {
+      console.error('이미지 교체 오류:', error)
+      alert('이미지 교체에 실패했습니다.')
+    }
+  }
+
   // 폼 제출
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -178,7 +292,40 @@ export default function EditPlacePage() {
 
     try {
       setLoading(true)
-
+  
+      // 썸네일 이미지 처리
+      let thumbnailUrl = place?.thumbnail_image || null
+      
+      // 새 썸네일이 업로드된 경우
+      if (thumbnailFiles.length > 0) {
+        // 기존 썸네일 삭제
+        if (place?.thumbnail_image) {
+          await deleteImageFromStorage(place.thumbnail_image)
+        }
+        // 새 썸네일 업로드
+        thumbnailUrl = await uploadImage(thumbnailFiles[0], 'thumbnails')
+      }
+  
+      // 추가 이미지 처리
+      let additionalImageUrls = place?.additional_images || []
+  
+      // 삭제된 이미지들을 Storage에서도 삭제
+      for (const deletedUrl of deletedImages) {
+        await deleteImageFromStorage(deletedUrl)
+      }
+      
+      // 삭제된 이미지들 제거
+      additionalImageUrls = additionalImageUrls.filter(url => !deletedImages.includes(url))
+  
+      // 새 추가 이미지들 업로드
+      if (additionalFiles.length > 0) {
+        const uploadPromises = additionalFiles.map(file => 
+          uploadImage(file, 'additional')
+        )
+        const newImageUrls = await Promise.all(uploadPromises)
+        additionalImageUrls = [...additionalImageUrls, ...newImageUrls]
+      }
+  
       const { error } = await supabase
         .from('places')
         .update({
@@ -187,14 +334,17 @@ export default function EditPlacePage() {
           description: formData.description.trim() || null,
           phone: formData.phone.trim() || null,
           address: formData.address.trim(),
+          address_detail: formData.address_detail.trim() || null,
           jibun_address: formData.jibun_address?.trim() || null,
           links: formData.links,
+          thumbnail_image: thumbnailUrl,
+          additional_images: additionalImageUrls,
           updated_at: new Date().toISOString()
         })
         .eq('id', placeId)
-
+  
       if (error) throw error
-
+  
       alert('장소 정보가 성공적으로 수정되었습니다.')
       router.push('/admin/places')
     } catch (err) {
@@ -213,6 +363,30 @@ export default function EditPlacePage() {
         [type]: value
       }
     }))
+  }
+
+  // 썸네일 변경
+  const handleThumbnailChange = (files: File[]) => {
+    setThumbnailFiles(files)
+  }
+
+  // 추가 이미지 변경
+  const handleAdditionalImagesChange = (files: File[]) => {
+    setAdditionalFiles(files)
+  }
+
+  // 기존 썸네일 삭제
+  const handleRemoveExistingThumbnail = () => {
+    if (place?.thumbnail_image) {
+      setDeletedImages(prev => [...prev, place.thumbnail_image!])
+      // place 상태도 업데이트
+      setPlace(prev => prev ? { ...prev, thumbnail_image: null } : null)
+    }
+  }
+
+  // 기존 추가 이미지 삭제
+  const handleRemoveExistingImage = (url: string) => {
+    setDeletedImages(prev => [...prev, url])
   }
 
   useEffect(() => {
@@ -426,6 +600,36 @@ export default function EditPlacePage() {
                   className="bg-gray-50" 
                 />
               </div>
+
+              {/* 상세주소 */}
+              <div className="space-y-2">
+                <Label htmlFor="address_detail">상세주소</Label>
+                <Input
+                  id="address_detail"
+                  value={formData.address_detail}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    address_detail: e.target.value 
+                  }))}
+                  placeholder="동/호수, 층수, 상세 위치 등을 입력하세요"
+                />
+                <p className="text-sm text-gray-500">
+                  예: 3층, B1F 전시관, 101호 등
+                </p>
+              </div>
+
+              {/* 전체 주소 미리보기 */}
+              {(formData.address || formData.address_detail) && (
+                <div className="space-y-2">
+                  <Label>전체 주소</Label>
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm font-medium text-blue-900">
+                      {formData.address}
+                      {formData.address_detail && ` ${formData.address_detail}`}
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -435,26 +639,175 @@ export default function EditPlacePage() {
               <CardTitle>이미지</CardTitle>
               <CardDescription>장소의 사진을 관리해주세요</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* 현재 이미지 표시 */}
-              {place.thumbnail_image && (
-                <div className="space-y-2">
-                  <Label>현재 썸네일 이미지</Label>
-                  <div className="w-32 h-32 border rounded-lg overflow-hidden bg-gray-100">
+            <CardContent className="space-y-8">
+              {/* 썸네일 이미지 */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-medium">썸네일 이미지</Label>
+                    <p className="text-sm text-gray-500">장소를 대표하는 메인 이미지</p>
+                  </div>
+                  {place.thumbnail_image && !deletedImages.includes(place.thumbnail_image) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveExistingThumbnail}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      삭제
+                    </Button>
+                  )}
+                </div>
+
+                {/* 현재 썸네일 표시 */}
+                {place.thumbnail_image && !deletedImages.includes(place.thumbnail_image) && (
+                  <div className="border rounded-lg p-4 bg-gray-50">
                     <img 
                       src={place.thumbnail_image} 
-                      alt={place.name}
-                      className="w-full h-full object-cover"
+                      alt="현재 썸네일" 
+                      className="w-32 h-32 object-cover rounded-lg"
                     />
+                    <p className="text-sm text-gray-500 mt-2">현재 썸네일 이미지</p>
                   </div>
+                )}
+
+                {/* 새 썸네일 업로드 */}
+                <ImageUpload
+                  label={place.thumbnail_image && !deletedImages.includes(place.thumbnail_image) ? "썸네일 교체" : "썸네일 업로드"}
+                  description=""
+                  multiple={false}
+                  maxFiles={1}
+                  maxSize={10}
+                  onFilesChange={handleThumbnailChange}
+                  currentFiles={thumbnailFiles}
+                  existingImages={[]}
+                  showExistingControls={false}
+                />
+              </div>
+
+              {/* 추가 이미지들 */}
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-medium">추가 이미지</Label>
+                  <p className="text-sm text-gray-500">장소의 다양한 모습을 보여주는 사진들</p>
                 </div>
-              )}
-              
-              {/* TODO: 이미지 업로드/변경 컴포넌트 구현 */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-2">이미지 업로드/변경 기능은 곧 추가될 예정입니다</p>
-                <p className="text-sm text-gray-400">썸네일 이미지와 추가 이미지를 관리할 수 있습니다</p>
+
+                {/* 기존 추가 이미지들 표시 */}
+                {place.additional_images && place.additional_images.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {place.additional_images
+                      .filter(url => !deletedImages.includes(url))
+                      .map((url, index) => (
+                        <div key={url} className="relative border rounded-lg overflow-hidden">
+                          <img 
+                            src={url} 
+                            alt={`추가 이미지 ${index + 1}`}
+                            className="w-full h-32 object-cover"
+                          />
+                          
+                          {/* 교체 중인 이미지 오버레이 */}
+                          {replacingImageUrl === url && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-75 flex items-center justify-center">
+                              <div className="bg-white p-4 rounded-lg shadow-lg text-center max-w-xs">
+                                <p className="text-sm font-medium text-gray-900 mb-2">이미지 교체</p>
+                                {replaceImageFile ? (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-gray-600 truncate">선택된 파일: {replaceImageFile.name}</p>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={confirmImageReplace}
+                                      >
+                                        확인
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={cancelAdditionalImageReplace}
+                                      >
+                                        취소
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        const files = e.target.files
+                                        if (files) {
+                                          handleReplaceImageSelect(Array.from(files))
+                                        }
+                                      }}
+                                      className="text-xs"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={cancelAdditionalImageReplace}
+                                    >
+                                      취소
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* 일반 컨트롤 버튼들 */}
+                          {replacingImageUrl !== url && (
+                            <div className="absolute top-2 right-2 flex gap-1">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  console.log('교체 버튼 클릭됨:', url, index)
+                                  startAdditionalImageReplace(index)
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  console.log('삭제 버튼 클릭됨:', url)
+                                  handleRemoveExistingImage(url)
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+
+                {/* 새 추가 이미지 업로드 */}
+                {!replacingImageUrl && (
+                  <ImageUpload
+                    label="새 이미지 추가"
+                    description=""
+                    multiple={true}
+                    maxFiles={5}
+                    maxSize={10}
+                    onFilesChange={handleAdditionalImagesChange}
+                    currentFiles={additionalFiles}
+                    existingImages={[]}
+                    showExistingControls={false}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>

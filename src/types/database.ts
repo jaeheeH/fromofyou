@@ -88,6 +88,7 @@ export interface Place {
   thumbnail_image?: string;
   additional_images: string[];
   address: string;
+  address_detail?: string;  
   jibun_address?: string;
   coordinates?: Coordinates;
   links: PlaceLinks;
@@ -117,6 +118,7 @@ export interface PlaceFormData {
   phone: string;
   operating_hours: OperatingHours;
   address: string;
+  address_detail: string;
   jibun_address: string;
   coordinates: Coordinates;
   thumbnail_file?: File;
